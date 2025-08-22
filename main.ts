@@ -30,7 +30,7 @@ serve(async (req: Request): Promise<Response> => {
       </head>
       <body>
         <h1>Docker Registry Proxy</h1>
-        <p>This is a proxy for Docker Hub. Use with: <code>docker pull do.lax.ccwu.cc/library/ubuntu:latest</code></p>
+        <p>This is a proxy for Docker Hub. </p>
       </body>
       </html>
       `,
