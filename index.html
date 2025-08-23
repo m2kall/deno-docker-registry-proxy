@@ -2,40 +2,9 @@
 <html>
 <head>
   <title>Docker Registry 代理</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
-  <h1>静态 Docker Registry 代理</h1>
-  <p>使用示例: <code>docker pull docker.pubhub.store/library/ubuntu:latest</code></p>
-  <p>这是静态兜底页面，支持 XLSX 文件处理。</p>
-  <script type="text/javascript">
-    var gk_isXlsx = true;
-    var gk_xlsxFileLookup = {};
-    var gk_fileData = {};
-    function filledCell(cell) {
-      return cell !== '' && cell != null;
-    }
-    function loadFileData(filename) {
-      if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-        try {
-          var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-          var firstSheetName = workbook.SheetNames[0];
-          var worksheet = workbook.Sheets[firstSheetName];
-          var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-          var filteredData = jsonData.filter(row => row.some(filledCell));
-          var headerRowIndex = filteredData.findIndex((row, index) =>
-            row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-          );
-          if (headerRowIndex === -1 || headerRowIndex > 25) headerRowIndex = 0;
-          var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex));
-          return XLSX.utils.sheet_to_csv(csv, { header: 1 });
-        } catch (e) {
-          console.error(e);
-          return "";
-        }
-      }
-      return gk_fileData[filename] || "";
-    }
-  </script>
+  <h1>Docker Registry 代理</h1>
+  <p>使用示例: <code>docker pull docker.pubhub.store/library/ubuntu:latest</code></p>  
 </body>
 </html>
