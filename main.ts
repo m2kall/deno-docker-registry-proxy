@@ -3,11 +3,6 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 const DOCKER_HUB = "https://registry-1.docker.io";
 const AUTH_URL = "https://auth.docker.io/token";
 
-// 全局变量支持 XLSX 处理
-let gk_isXlsx = true;
-let gk_xlsxFileLookup: { [key: string]: boolean } = {};
-let gk_fileData: { [key: string]: string } = {};
-
 serve(async (req: Request): Promise<Response> => {
   const url = new URL(req.url);
   console.log(`请求: ${req.method} ${url.pathname}`);
@@ -33,45 +28,11 @@ serve(async (req: Request): Promise<Response> => {
       <html>
       <head>
         <title>Docker Registry 代理</title>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
       </head>
       <body>
         <h1>Docker Registry 代理</h1>
         <p>使用示例: <code>docker pull docker.pubhub.store/library/ubuntu:latest</code></p>
-        <p>这是静态兜底页面，支持 XLSX 文件处理。</p>
-        <form action="/upload" method="post" enctype="multipart/form-data">
-          <input type="file" name="file" accept=".xlsx">
-          <button type="submit">上传 XLSX 文件</button>
-        </form>
-        <script type="text/javascript">
-          var gk_isXlsx = true;
-          var gk_xlsxFileLookup = {};
-          var gk_fileData = {};
-          function filledCell(cell) {
-            return cell !== '' && cell != null;
-          }
-          function loadFileData(filename) {
-            if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-              try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                if (headerRowIndex === -1 || headerRowIndex > 25) headerRowIndex = 0;
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex));
-                return XLSX.utils.sheet_to_csv(csv, { header: 1 });
-              } catch (e) {
-                console.error(e);
-                return "";
-              }
-            }
-            return gk_fileData[filename] || "";
-          }
-        </script>
+        <p>这是代理的欢迎页面。</p>
       </body>
       </html>
       `,
@@ -80,22 +41,6 @@ serve(async (req: Request): Promise<Response> => {
         headers: { "Content-Type": "text/html; charset=utf-8" },
       }
     );
-  }
-
-  // 处理 XLSX 文件上传
-  if (url.pathname === "/upload" && req.method === "POST") {
-    const formData = await req.formData();
-    const file = formData.get("file");
-    if (file instanceof File) {
-      const data = await file.arrayBuffer();
-      gk_fileData[file.name] = btoa(String.fromCharCode(...new Uint8Array(data)));
-      gk_xlsxFileLookup[file.name] = true;
-      return new Response(JSON.stringify({ message: "文件上传成功" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-    return new Response("无效文件", { status: 400 });
   }
 
   // 代理 /v2/* 到 Docker Hub
