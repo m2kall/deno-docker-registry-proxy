@@ -31,8 +31,7 @@ serve(async (req: Request): Promise<Response> => {
       </head>
       <body>
         <h1>Docker Registry 代理</h1>
-        <p>使用示例: <code>docker pull docker.pubhub.store/library/ubuntu:latest</code></p>
-        <p>这是代理的欢迎页面。</p>
+        <p>使用示例: <code>docker pull docker.pubhub.store/library/ubuntu:latest</code></p>        
       </body>
       </html>
       `,
