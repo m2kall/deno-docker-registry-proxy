@@ -53,19 +53,47 @@ serve(async (req: Request): Promise<Response> => {
         const response = await fetch(upstreamUrl, { method: req.method, headers: req.headers });
         const authHeader = response.headers.get("WWW-Authenticate");
         if (authHeader && response.status === 401) {
-          // 获取 Token (匿名访问公共镜像)
-          const tokenResponse = await fetch(`${AUTH_URL}?service=registry.docker.io&scope=repository:library/ubuntu:pull`);
+          // 动态生成 scope，支持任意公共镜像
+          const scopeParts = url.pathname.split('/v2/')[1]?.split('/') || ['library', 'ubuntu'];
+          const namespace = scopeParts[0] || 'library';
+          const repository = scopeParts[1] || 'ubuntu';
+          const scope = `repository:${namespace}/${repository}:pull`;
+          console.log(`生成的 scope: ${scope}`);
+
+          // 获取匿名 Token
+          const tokenParams = new URLSearchParams({
+            service: "registry.docker.io",
+            scope,
+          });
+          const tokenResponse = await fetch(`${AUTH_URL}?${tokenParams}`);
+          if (!tokenResponse.ok) {
+            throw new Error(`Token 请求失败: ${tokenResponse.status} ${await tokenResponse.text()}`);
+          }
           const tokenData = await tokenResponse.json();
           const token = tokenData.token;
+          if (!token) {
+            throw new Error("Token 未找到");
+          }
 
           // 用 Token 重试
           const authReq = new Request(upstreamUrl, {
             method: req.method,
             headers: { ...Object.fromEntries(req.headers), "Authorization": `Bearer ${token}` },
           });
-          return await fetch(authReq);
+          const authResponse = await fetch(authReq);
+          const newHeaders = new Headers(authResponse.headers);
+          newHeaders.set("Access-Control-Allow-Origin", "*");
+          return new Response(authResponse.body, {
+            status: authResponse.status,
+            headers: newHeaders,
+          });
         }
-        return response;
+        const newHeaders = new Headers(response.headers);
+        newHeaders.set("Access-Control-Allow-Origin", "*");
+        return new Response(response.body, {
+          status: response.status,
+          headers: newHeaders,
+        });
       }
 
       // 其他 /v2/* 路径直接代理
