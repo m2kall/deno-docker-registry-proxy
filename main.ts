@@ -52,13 +52,14 @@ async function handler(req: Request): Promise<Response> {
       const upstreamResponse = await fetch(upstreamUrl.toString(), {
         method: req.method,
         headers: headers,
-        redirect: "manual", // Let the client handle redirects
+        redirect: "follow", // Automatically follow redirects from the upstream
       });
 
       // Copy response headers from the upstream to our response.
       const responseHeaders = new Headers(upstreamResponse.headers);
-      
-      // Set CORS headers for the actual response
+
+      // Add headers to prevent CDN buffering and allow cross-origin requests.
+      responseHeaders.set("Cache-Control", "no-store"); // Explicitly tell CDNs not to buffer
       responseHeaders.set("Access-Control-Allow-Origin", "*");
       responseHeaders.set("Access-Control-Expose-Headers", responseHeaders.get("Access-Control-Expose-Headers") || "");
 
