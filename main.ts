@@ -1,92 +1,130 @@
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { serve } from "std/http/server.ts";
 
-    const DOCKER_HUB = "https://registry-1.docker.io";
-    const AUTH_URL = "https://auth.docker.io/token";
+// The official Docker Hub registry
+const UPSTREAM_REGISTRY = "https://registry-1.docker.io";
 
-    serve(async (req: Request): Promise<Response> => {
-      const url = new URL(req.url);
-      console.log(`请求: ${req.method} ${url.pathname}`);
+// The authentication server for Docker Hub
+const AUTH_SERVER = "https://auth.docker.io";
 
-      // CORS 预检
-      if (req.method === "OPTIONS") {
-        return new Response(null, {
-          status: 204,
-          headers: {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, HEAD, POST, PUT, DELETE, OPTIONS",
-            "Access-Control-Allow-Headers": "Authorization, Content-Type",
-            "Access-Control-Max-Age": "86400",
-          },
-        });
-      }
+async function handler(req: Request): Promise<Response> {
+  const url = new URL(req.url);
+  const path = url.pathname;
+  const search = url.search;
 
-      // 根路径
-      if (url.pathname === "/" || url.pathname === "") {
-        return new Response(
-          `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>Docker Registry 代理</title>
-            <meta charset="UTF-8">
-          </head>
-          <body>
-            <h1>Docker Registry 代理</h1>
-            <p>使用: <code>docker pull docker.pubhub.store/仓库名称/镜像名称:版本</code></p>
-          </body>
-          </html>
-          `,
-          { status: 200, headers: { "Content-Type": "text/html; charset=UTF-8" } }
-        );
-      }
+  console.log(`[Request] ${req.method} ${path}`);
 
-      // 代理 /v2/*
-      if (url.pathname.startsWith("/v2/") || url.pathname === "/v2") {
-        try {
-          const upstreamUrl = new URL(`${DOCKER_HUB}${url.pathname}${url.search}`);
-          console.log(`代理到: ${upstreamUrl}`);
+  // Simple landing page
+  if (path === "/") {
+    return new Response(
+      `<!DOCTYPE html>
+      <html>
+        <head><title>Deno Docker Registry Proxy</title></head>
+        <body>
+          <h1>Deno Docker Registry Proxy is running.</h1>
+          <p>
+            This proxy forwards requests to the official Docker Hub registry.
+          </p>
+          <p>
+            Usage: <code>docker pull ${url.hostname}/library/ubuntu:latest</code>
+          </p>
+        </body>
+      </html>`,
+      { headers: { "Content-Type": "text/html; charset=utf-8" } }
+    );
+  }
 
-          if (url.pathname === "/v2" || url.pathname === "/v2/") {
-            const response = await fetch(upstreamUrl, { method: req.method, headers: req.headers });
-            const authHeader = response.headers.get("WWW-Authenticate");
-            if (authHeader && response.status === 401) {
-              // 动态解析 scope 从实际请求路径
-              const fullPath = url.pathname.split('/v2/')[1] || 'xream/sub-store';
-              const [namespace, repository] = fullPath.split('/').filter(Boolean) || ['xream', 'sub-store'];
-              const scope = `repository:${namespace}/${repository}:pull`;
-              console.log(`Scope: ${scope}`);
+  // Handle CORS preflight requests
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+        "Access-Control-Allow-Headers": "Authorization, Range",
+        "Access-Control-Expose-Headers": "Docker-Content-Digest, WWW-Authenticate, Link, Content-Length, Content-Range",
+        "Access-Control-Max-Age": "86400",
+      },
+    });
+  }
 
-              const tokenParams = new URLSearchParams({ service: "registry.docker.io", scope });
-              const tokenResponse = await fetch(`${AUTH_URL}?${tokenParams}`, { signal: AbortSignal.timeout(5000) });
-              if (!tokenResponse.ok) throw new Error(`Token 失败: ${tokenResponse.status} ${await tokenResponse.text()}`);
-              const tokenData = await tokenResponse.json();
-              const token = tokenData.token;
-              if (!token) throw new Error("无 Token");
+  // The Docker client sends a request to /v2/ to check the API version.
+  // It may or may not have an auth token. We'll proxy it to the real registry.
+  if (path.startsWith("/v2/")) {
+    const upstreamUrl = new URL(UPSTREAM_REGISTRY + path + search);
 
-              const authReq = new Request(upstreamUrl, {
-                method: req.method,
-                headers: { ...Object.fromEntries(req.headers), "Authorization": `Bearer ${token}` },
-              });
-              const authResponse = await fetch(authReq, { signal: AbortSignal.timeout(10000) });
-              const newHeaders = new Headers(authResponse.headers);
-              newHeaders.set("Access-Control-Allow-Origin", "*");
-              return new Response(authResponse.body, { status: authResponse.status, headers: newHeaders });
-            }
-            const newHeaders = new Headers(response.headers);
-            newHeaders.set("Access-Control-Allow-Origin", "*");
-            return new Response(response.body, { status: response.status, headers: newHeaders });
-          }
+    // Copy request headers, including the 'Authorization' header if present.
+    const headers = new Headers(req.headers);
+    headers.set("Host", upstreamUrl.hostname);
 
-          const proxyReq = new Request(upstreamUrl, { method: req.method, headers: req.headers });
-          const response = await fetch(proxyReq, { signal: AbortSignal.timeout(10000) });
-          const newHeaders = new Headers(response.headers);
-          newHeaders.set("Access-Control-Allow-Origin", "*");
-          return new Response(response.body, { status: response.status, headers: newHeaders });
-        } catch (error) {
-          console.error("错误:", error.message);
-          return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { "Content-Type": "application/json" } });
+    try {
+      const upstreamResponse = await fetch(upstreamUrl.toString(), {
+        method: req.method,
+        headers: headers,
+        redirect: "manual", // Let the client handle redirects
+      });
+
+      // Copy response headers from the upstream to our response.
+      const responseHeaders = new Headers(upstreamResponse.headers);
+      
+      // Set CORS headers for the actual response
+      responseHeaders.set("Access-Control-Allow-Origin", "*");
+      responseHeaders.set("Access-Control-Expose-Headers", responseHeaders.get("Access-Control-Expose-Headers") || "");
+
+
+      // If the upstream sends a 401 Unauthorized, it will include a
+      // 'WWW-Authenticate' header. We must pass this back to the client
+      // so the client knows how to get a token.
+      if (upstreamResponse.status === 401) {
+        const authHeader = upstreamResponse.headers.get("WWW-Authenticate");
+        if (authHeader) {
+            // Modify the 'realm' in the WWW-Authenticate header to point to our proxy,
+            // so the client knows where to go for authentication.
+            const modifiedAuthHeader = authHeader.replace(AUTH_SERVER, url.origin);
+            responseHeaders.set("WWW-Authenticate", modifiedAuthHeader);
         }
       }
+      
+      console.log(`[Proxy] ${path} -> ${upstreamUrl.toString()} [${upstreamResponse.status}]`);
 
-      return new Response("未找到", { status: 404, headers: { "Content-Type": "text/plain" } });
-    });
+      return new Response(upstreamResponse.body, {
+        status: upstreamResponse.status,
+        statusText: upstreamResponse.statusText,
+        headers: responseHeaders,
+      });
+
+    } catch (error) {
+      console.error(`[Error] Failed to proxy request: ${error.message}`);
+      return new Response(JSON.stringify({ error: "Upstream request failed." }), {
+        status: 502, // Bad Gateway
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }
+  
+  // Handle token requests for the auth server
+  if (path.startsWith("/token")) {
+    const tokenUrl = new URL(AUTH_SERVER + path + search);
+    console.log(`[Auth] Proxying token request to: ${tokenUrl}`);
+    try {
+        const tokenResponse = await fetch(tokenUrl.toString(), {
+            method: req.method,
+            headers: req.headers,
+        });
+        return tokenResponse;
+    } catch (error) {
+        console.error(`[Error] Failed to proxy auth request: ${error.message}`);
+        return new Response(JSON.stringify({ error: "Authentication request failed." }), {
+            status: 502,
+            headers: { "Content-Type": "application/json" },
+        });
+    }
+  }
+
+  return new Response("Not Found", { status: 404 });
+}
+
+serve(handler, {
+  onListen({ hostname, port }) {
+    console.log(`🚀 Docker Registry Proxy listening on http://${hostname}:${port}`);
+  },
+});
