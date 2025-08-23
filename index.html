@@ -1,11 +1,71 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Docker Registry 代理</title>
-  <meta charset="UTF-8">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Docker Registry Proxy</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            background-color: #f0f2f5;
+            color: #333;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 700px;
+            background-color: #fff;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        h1 {
+            font-size: 2.5em;
+            color: #007bff;
+            margin-bottom: 10px;
+        }
+        p {
+            font-size: 1.1em;
+            margin-bottom: 20px;
+        }
+        code {
+            background-color: #e9ecef;
+            padding: 5px 8px;
+            border-radius: 5px;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+            font-size: 0.95em;
+            color: #c7254e;
+        }
+        .usage {
+            text-align: left;
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+            overflow-x: auto;
+        }
+        .usage pre {
+            margin: 0;
+        }
+    </style>
 </head>
 <body>
-  <h1>Docker Registry 代理</h1>
-  <p>使用: <code>docker pull docker.pubhub.store/仓库名称/镜像名称:版本</code></p>
+    <div class="container">
+        <h1>🚀 Docker Registry Proxy</h1>
+        <p>A high-performance, Deno-powered proxy for the Docker Hub registry.</p>
+        <div class="usage">
+            <p><strong>Usage Example:</strong></p>
+            <pre><code># Pull the official Ubuntu image
+docker pull your-proxy-domain.com/library/ubuntu:latest
+
+# Pull a specific version of Redis
+docker pull your-proxy-domain.com/library/redis:7.0</code></pre>
+        </div>
+    </div>
 </body>
 </html>

@@ -13,24 +13,16 @@ async function handler(req: Request): Promise<Response> {
 
   console.log(`[Request] ${req.method} ${path}`);
 
-  // Simple landing page
+  // Serve the landing page
   if (path === "/") {
-    return new Response(
-      `<!DOCTYPE html>
-      <html>
-        <head><title>Deno Docker Registry Proxy</title></head>
-        <body>
-          <h1>Deno Docker Registry Proxy is running.</h1>
-          <p>
-            This proxy forwards requests to the official Docker Hub registry.
-          </p>
-          <p>
-            Usage: <code>docker pull ${url.hostname}/library/ubuntu:latest</code>
-          </p>
-        </body>
-      </html>`,
-      { headers: { "Content-Type": "text/html; charset=utf-8" } }
-    );
+    try {
+      const html = await Deno.readTextFile("index.html");
+      return new Response(html, {
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    } catch {
+      return new Response("Not Found", { status: 404 });
+    }
   }
 
   // Handle CORS preflight requests
